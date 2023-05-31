@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import 'package:band_names/commons/adaptative_dialog.dart';
 import 'package:band_names/commons/band_tile.dart';
 import 'package:band_names/models/band.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:band_names/services/socket_service.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,12 +14,20 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   /// Variables
-  List<Band> bands = [
-    Band(id: '1', name: 'Metalica', votes: 5),
-    Band(id: '2', name: 'Post Malone', votes: 5),
-    Band(id: '3', name: 'Slink Sonic', votes: 5),
-    Band(id: '4', name: 'Bon Jovi', votes: 5),
-  ];
+  late final socketService = Provider.of<SocketService>(context, listen: false);
+  List<Band> bands = [];
+
+  @override
+  void initState() {
+    subscribeToActiveBandsEvent();
+    super.initState();
+  }
+
+  @override
+  dispose() {
+    unsubscribeEvents();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +39,15 @@ class _HomePageState extends State<HomePage> {
             .textTheme
             .titleLarge!
             .apply(color: Colors.black87),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Selector<SocketService, ServerStatus>(
+              selector: (_, state) => state.serverStatus,
+              builder: (context, serverStatus, ___) => serverStatus.icon,
+            ),
+          ),
+        ],
       ),
       body: ListView.builder(
         itemCount: bands.length,
@@ -49,13 +65,7 @@ class _HomePageState extends State<HomePage> {
     final band = bands.elementAt(index);
     return Dismissible(
       key: Key(band.id),
-      onDismissed: (direction) {
-        debugPrint('direction: $direction');
-        debugPrint('$band');
-        setState(() {
-          bands.removeAt(index);
-        });
-      },
+      onDismissed: (_) => deleteBand(band),
       direction: DismissDirection.startToEnd,
       background: Container(
         alignment: Alignment.centerLeft,
@@ -68,11 +78,34 @@ class _HomePageState extends State<HomePage> {
       ),
       child: BandTile(
         band: band,
-        onTap: () {
-          debugPrint(band.name);
-        },
+        onTap: () => voteBand(band),
       ),
     );
+  }
+
+  /// Methods
+  void subscribeToActiveBandsEvent() {
+    socketService.socket.on('active-bands', (payload) {
+      debugPrint('active-bands: $payload');
+      bands = (payload as List)
+          .map<Band>((bandData) => Band.fromMap(bandData))
+          .toList();
+      setState(() {});
+    });
+  }
+
+  void unsubscribeEvents() {
+    socketService.socket.off('active-bands');
+  }
+
+  void voteBand(Band band) {
+    debugPrint('vote for Band ${band.id}');
+    socketService.emit('vote-band', {'id': band.id});
+  }
+
+  void deleteBand(Band band) {
+    debugPrint('delete band ${band.id}');
+    socketService.emit('delete-band', {'id': band.id});
   }
 
   void addNewBand() {
@@ -85,9 +118,7 @@ class _HomePageState extends State<HomePage> {
 
   void addBandToList(String name) {
     if (name.length > 1) {
-      setState(() {
-        bands.add(Band(id: DateTime.now().toString(), name: name, votes: 0));
-      });
+      socketService.emit('add-band', {'name': name});
     }
     Navigator.pop(context);
   }
