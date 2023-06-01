@@ -3,6 +3,7 @@ import 'package:band_names/commons/band_tile.dart';
 import 'package:band_names/models/band.dart';
 import 'package:band_names/services/socket_service.dart';
 import 'package:flutter/material.dart';
+import 'package:pie_chart/pie_chart.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
@@ -49,9 +50,47 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: ListView.builder(
-        itemCount: bands.length,
-        itemBuilder: itemBuilder,
+      body: Column(
+        children: [
+          const SizedBox(height: 24),
+          if (dataMap.isNotEmpty)
+            PieChart(
+              dataMap: dataMap,
+              animationDuration: const Duration(milliseconds: 800),
+              chartLegendSpacing: 56,
+              chartRadius: MediaQuery.of(context).size.width / 3.2,
+              // colorList: colorList,
+              initialAngleInDegree: 0,
+              chartType: ChartType.ring,
+              ringStrokeWidth: 32,
+              centerText: "Votes",
+              legendOptions: const LegendOptions(
+                showLegendsInRow: false,
+                legendPosition: LegendPosition.right,
+                showLegends: true,
+                legendShape: BoxShape.circle,
+                legendTextStyle: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              chartValuesOptions: const ChartValuesOptions(
+                showChartValueBackground: true,
+                showChartValues: true,
+                showChartValuesInPercentage: false,
+                showChartValuesOutside: true,
+                decimalPlaces: 1,
+              ),
+              // gradientList: ---To add gradient colors---
+              // emptyColorGradient: ---Empty Color gradient---
+            ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: ListView.builder(
+              itemCount: bands.length,
+              itemBuilder: itemBuilder,
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: addNewBand,
@@ -121,5 +160,13 @@ class _HomePageState extends State<HomePage> {
       socketService.emit('add-band', {'name': name});
     }
     Navigator.pop(context);
+  }
+
+  Map<String, double> get dataMap {
+    final dataMap = <String, double>{};
+    for (var band in bands) {
+      dataMap.putIfAbsent(band.name, () => band.votes.toDouble());
+    }
+    return dataMap;
   }
 }
